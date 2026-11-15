@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import logging
 import sys
 import urllib.request
 from array import array
@@ -13,9 +12,11 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import BinaryIO
 
+import structlog
+
 from microllm.tokenizer import ByteTokenizer
 
-LOGGER = logging.getLogger(__name__)
+LOGGER = structlog.get_logger(__name__)
 CHUNK_SIZE = 1024 * 1024
 TINYSTORIES_REVISION = "f54c09fd23315a6f9c86f9dc80f725de7d8f9c64"
 SHAKESPEARE_REVISION = "6f9487a6fe5b420b7ca9afb0d7c078e37c1d1b4e"
@@ -178,7 +179,9 @@ def download_file(source: SourceFile, destination: Path) -> str:
     if offset:
         request.add_header("Range", f"bytes={offset}-")
 
-    LOGGER.info("Downloading %s (resume at %s bytes)", source.filename, offset)
+    LOGGER.info(
+        "download_started", filename=source.filename, offset_bytes=offset
+    )
 
     with urllib.request.urlopen(request, timeout=60) as response:  # noqa: S310
         resumed = response.status == 206
@@ -202,13 +205,19 @@ def download_file(source: SourceFile, destination: Path) -> str:
                 received += len(chunk)
 
                 if received - reported >= 64 * CHUNK_SIZE:
-                    LOGGER.info("%s: %s bytes", source.filename, received)
+                    LOGGER.info(
+                        "download_progress",
+                        filename=source.filename,
+                        received_bytes=received,
+                    )
                     reported = received
 
     digest = verify_source(temporary, source)
     temporary.replace(destination)
     LOGGER.info(
-        "Verified %s: %s bytes", source.filename, destination.stat().st_size
+        "download_verified",
+        filename=source.filename,
+        size_bytes=destination.stat().st_size,
     )
 
     return digest

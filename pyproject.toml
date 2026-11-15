@@ -6,7 +6,14 @@ readme = "README.md"
 license = "GPL-3.0-only"
 license-files = ["LICENSE"]
 requires-python = ">=3.12,<3.15"
-dependencies = ["numpy>=2.2,<3"]
+dependencies = [
+    "numpy>=2.2,<3",
+    "structlog>=25.5,<27",
+    "colorama>=0.4.6; sys_platform == 'win32'",
+]
+
+[project.optional-dependencies]
+gpu = ["taichi>=1.7.4,<1.8"]
 
 [project.urls]
 Homepage = "https://github.com/Mastermind-U/mymicrollm"
@@ -60,6 +67,15 @@ pretty = true
 warn_unreachable = true
 warn_unused_ignores = true
 files = ["src", "tests", "main.py"]
+
+[[tool.mypy.overrides]]
+module = "taichi.*"
+ignore_missing_imports = true
+
+# Аннотации @ti.kernel интерпретируются Taichi во время выполнения.
+[[tool.mypy.overrides]]
+module = ["microllm.taichi_model", "microllm.taichi_training"]
+disable_error_code = ["valid-type", "no-untyped-def"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

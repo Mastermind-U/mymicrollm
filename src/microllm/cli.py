@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import dataclasses
+import functools
 import io
 import json
 import logging
@@ -12,16 +13,31 @@ import sys
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+import structlog
+
 if TYPE_CHECKING:
     from microllm.model import ModelConfig
+
+LOGGER = structlog.get_logger(__name__)
 
 
 def _add_training_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--config", type=Path)
+    parser.add_argument(
+        "--device",
+        choices=("cpu", "cuda"),
+        default="cpu",
+        help="Устройство обучения (cuda требует установки extra gpu)",
+    )
     parser.add_argument("--data-dir", type=Path, required=True)
     parser.add_argument("--output-dir", type=Path, default=Path("runs/model"))
     parser.add_argument("--resume", type=Path)
     parser.add_argument("--stop-after", type=int)
+    parser.add_argument(
+        "--parallel-accumulation",
+        action="store_true",
+        help="Объединить микробатчи одного шага при обучении на CUDA",
+    )
 
     integers = (
         "steps",
@@ -60,6 +76,12 @@ def build_parser() -> argparse.ArgumentParser:
         type=int,
         default=4,
         help="Число потоков BLAS (по умолчанию 4; задаётся до импорта NumPy)",
+    )
+    parser.add_argument(
+        "--log-format",
+        choices=("console", "json"),
+        default="console",
+        help="Формат логов: цветной console или json (по умолчанию console)",
     )
 
     commands = parser.add_subparsers(dest="command", required=True)
@@ -138,9 +160,40 @@ def _run_training(args: argparse.Namespace) -> None:
             values[field.name] = value
 
     training_config = TrainConfig(**values)
+    if args.parallel_accumulation and args.device != "cuda":
+        raise ValueError("--parallel-accumulation требует --device cuda")
+    if args.device == "cuda":
+        try:
+            import taichi as ti
+        except ImportError as error:
+            raise ValueError(
+                "Для CUDA установите зависимости: uv sync --extra gpu"
+            ) from error
+
+        try:
+            ti.init(
+                arch=ti.cuda,
+                enable_fallback=False,
+                offline_cache_file_path=str(args.output_dir / ".taichi-cache"),
+            )
+        except Exception as error:
+            raise ValueError(
+                f"Не удалось запустить Taichi CUDA: {error}"
+            ) from error
+
+        from microllm.taichi_training import train_taichi
+
+        train = functools.partial(
+            train_taichi, parallel_accumulation=args.parallel_accumulation
+        )
+
     model = Transformer(config)
 
-    print(f"Parameters: {model.parameter_count():,}", flush=True)
+    LOGGER.info(
+        "model_initialized",
+        parameters=model.parameter_count(),
+        device=args.device,
+    )
 
     checkpoint = train(
         model,
@@ -151,7 +204,7 @@ def _run_training(args: argparse.Namespace) -> None:
         stop_after=args.stop_after,
     )
 
-    print(f"Checkpoint: {checkpoint}")
+    LOGGER.info("training_finished", checkpoint=str(checkpoint))
 
 
 def _execute(args: argparse.Namespace) -> None:
@@ -237,7 +290,24 @@ def main() -> None:
     ):
         os.environ[variable] = str(args.threads)
 
+    renderer = (
+        structlog.dev.ConsoleRenderer(colors=True, force_colors=True)
+        if args.log_format == "console"
+        else structlog.processors.JSONRenderer(ensure_ascii=False)
+    )
     logging.basicConfig(level=logging.INFO, format="%(message)s")
+    structlog.configure(
+        processors=[
+            structlog.stdlib.filter_by_level,
+            structlog.stdlib.add_logger_name,
+            structlog.stdlib.add_log_level,
+            structlog.processors.TimeStamper(fmt="iso", utc=True),
+            renderer,
+        ],
+        wrapper_class=structlog.stdlib.BoundLogger,
+        logger_factory=structlog.stdlib.LoggerFactory(),
+        cache_logger_on_first_use=True,
+    )
 
     try:
         _execute(args)

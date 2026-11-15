@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any, Literal
 
 import numpy as np
+import structlog
 from numpy.typing import NDArray
 
 from microllm.checkpoint import load_checkpoint, save_checkpoint
@@ -18,6 +19,8 @@ from microllm.model import Transformer
 
 type FloatArray = NDArray[np.float32]
 type IntArray = NDArray[np.int64]
+
+LOGGER = structlog.get_logger(__name__)
 
 
 @dataclass(frozen=True)
@@ -411,6 +414,15 @@ def train(
     checkpoint = output_dir / "checkpoint.npz"
     final_step = min(config.steps, stop_after or config.steps)
 
+    LOGGER.info(
+        "training_started",
+        backend="numpy",
+        start_step=optimizer.step,
+        final_step=final_step,
+        output_dir=str(output_dir),
+        resume=str(resume) if resume is not None else None,
+    )
+
     with (output_dir / "metrics.jsonl").open("a", encoding="utf-8") as log:
         while optimizer.step < final_step:
             started = time.perf_counter()
@@ -444,7 +456,7 @@ def train(
 
             log.write(line + "\n")
             log.flush()
-            print(line, flush=True)
+            LOGGER.info("training_step", backend="numpy", **metrics)
 
             if (
                 optimizer.step % config.save_every == 0
@@ -453,7 +465,13 @@ def train(
                 _save_training(
                     checkpoint, model, optimizer, dataset, rng, eval_rng
                 )
+                LOGGER.info(
+                    "checkpoint_saved",
+                    step=optimizer.step,
+                    path=str(checkpoint),
+                )
 
     _save_training(checkpoint, model, optimizer, dataset, rng, eval_rng)
+    LOGGER.info("checkpoint_saved", step=optimizer.step, path=str(checkpoint))
 
     return checkpoint
