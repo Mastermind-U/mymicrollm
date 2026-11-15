@@ -1,0 +1,6 @@
+# Keep Python, configs and documentation consistent on Windows and Linux.
+* text=auto eol=lf
+
+# Native Windows shell scripts use their customary line endings.
+*.bat text eol=crlf
+*.cmd text eol=crlf

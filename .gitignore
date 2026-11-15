@@ -218,3 +218,48 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# MyMicroLLM: generated data and training results (also in custom locations).
+/data/
+/datasets/
+/runs/
+/artifacts/
+/checkpoints/
+/weights/
+/models/
+*.bin
+*.npy
+*.npz
+*.safetensors
+*.ckpt
+*.pt
+*.pth
+*.onnx
+*.gguf
+*.parquet
+*.arrow
+*.jsonl
+
+# Interrupted downloads, atomic checkpoint writes and temporary files.
+*.part
+*.tmp
+*.temp
+
+# Local editor, assistant and OS state.
+/.vscode/
+/.idea/
+/.codex/
+.DS_Store
+Thumbs.db
+Desktop.ini
+*.swp
+*.swo
+*~
+
+# Local environment overrides; documented examples may be committed.
+.env.*
+!.env.example
+
+# Keep reproducible installation inputs and model configs in the repository.
+!uv.lock
+!.python-version

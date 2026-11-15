@@ -1,0 +1,65 @@
+[project]
+name = "microllm"
+version = "0.1.0"
+description = "Educational language model with NumPy and handwritten backpropagation"
+readme = "README.md"
+license = "GPL-3.0-only"
+license-files = ["LICENSE"]
+requires-python = ">=3.12,<3.15"
+dependencies = ["numpy>=2.2,<3"]
+
+[project.urls]
+Homepage = "https://github.com/Mastermind-U/mymicrollm"
+Repository = "https://github.com/Mastermind-U/mymicrollm"
+Documentation = "https://github.com/Mastermind-U/mymicrollm/blob/main/README.md"
+Issues = "https://github.com/Mastermind-U/mymicrollm/issues"
+
+[project.scripts]
+microllm = "microllm.cli:main"
+
+[build-system]
+requires = ["uv_build>=0.11,<0.12"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = ["ruff>=0.15", "mypy>=1.19", "pytest>=9"]
+
+[tool.uv]
+default-groups = ["dev"]
+
+# Базовые правила взяты из ../XLDAP, без правил его доменных слоёв.
+[tool.ruff]
+target-version = "py312"
+line-length = 79
+
+[tool.ruff.format]
+docstring-code-format = true
+line-ending = "lf"
+
+[tool.ruff.lint]
+select = ["F", "E", "W", "I", "N", "UP", "ANN", "S", "B", "C90", "D", "SIM", "PIE", "RUF100"]
+ignore = ["D100", "D101", "D102", "D103", "D104", "D107", "D203", "D213", "D301", "ANN401", "S311"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*.py" = ["S101"]
+
+[tool.ruff.lint.mccabe]
+max-complexity = 15
+
+[tool.ruff.lint.isort]
+known-first-party = ["microllm"]
+split-on-trailing-comma = false
+combine-as-imports = true
+
+[tool.mypy]
+python_version = "3.12"
+disallow_untyped_defs = true
+check_untyped_defs = true
+show_column_numbers = true
+pretty = true
+warn_unreachable = true
+warn_unused_ignores = true
+files = ["src", "tests", "main.py"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
